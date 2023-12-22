@@ -145,7 +145,7 @@ module game::game_2048{
         let overlaid = false;
         let new_tile = Tile { i, j ,value,key,overlaid};
         vec_map::insert(&mut _tiles.tiles,key,new_tile);
-        // debug::print(&_tiles.tiles);
+
         if (vec_set::size(&validPos) == 1) {
             return judge(&_tiles.tiles)
         };
@@ -244,8 +244,7 @@ module game::game_2048{
                             let currentTile = option::borrow_mut(&mut _currentTile);
        
                             if(tile.value == currentTile.value){
-                     
-                                // tile.overlaid = true;
+                 
                                 currentTile.value = o_tile.value * 2;
                                 o_tile.overlaid = true;
                             
@@ -255,8 +254,7 @@ module game::game_2048{
                                         winFlag = true;
                                     };
                                 };
-                                // tile.i = currentTile.i;
-                                // tile.j = currentTile.j;
+                    
                                 o_tile.i = currentTile.i;
                                 o_tile.j = currentTile.j;
                                 let merge_tile = vec_map::get_mut(&mut game.tiles,&currentTile.key);
@@ -266,31 +264,25 @@ module game::game_2048{
                                 maxTileMerged =  math::max(maxTileMerged,currentTile.value);
                                 option::destroy_some(_currentTile);
                             }else{
-                            // debug::print(&base);
-                            // debug::print(&diff);
-                            // debug::print(b);
-                            // debug::print(&targetPosIndex);
-                           let targetPos = *b + *vector::borrow(&diff,targetPosIndex) - 100;
-                           if (tile.i * 4 + tile.j != targetPos) {
-                            //  debug::print(&targetPos);
-                             tile.i = targetPos / 4; 
-                             tile.j = targetPos % 4;
-                             o_tile.i = tile.i;
-                             o_tile.j = tile.j;
-                             movedFlag = true;
-                           };
-                           option::swap_or_fill(&mut _currentTile,*tile);
-                           targetPosIndex = targetPosIndex + 1;
-                        };
+                        
+                                let targetPos = *b + *vector::borrow(&diff,targetPosIndex) - 100;
+                                if (tile.i * 4 + tile.j != targetPos) {
+                 
+                                    tile.i = targetPos / 4; 
+                                    tile.j = targetPos % 4;
+                                    o_tile.i = tile.i;
+                                    o_tile.j = tile.j;
+                                    movedFlag = true;
+                                };
+                                option::swap_or_fill(&mut _currentTile,*tile);
+                                targetPosIndex = targetPosIndex + 1;
+                            };
                         
                         }else{
-                            // debug::print(&base);
-                            // debug::print(&diff);
-                            // debug::print(b);
-                            // debug::print(&targetPosIndex);
+              
                            let targetPos = *b + *vector::borrow(&diff,targetPosIndex) - 100;
                            if (tile.i * 4 + tile.j != targetPos) {
-                            //  debug::print(&targetPos);
+             
                              tile.i = targetPos / 4; 
                              tile.j = targetPos % 4;
                              o_tile.i = tile.i;
@@ -442,22 +434,17 @@ module game::game_2048{
         let pre2 = weather::city_weather_oracle_pressure(weather_oracle,geoname_id2);
 
         let seed = convert_weather_to_seed(temp1+temp1,pre1+pre2);
-        generate((seed as u64))
+        generate_random((seed as u64))
     }
 
     fun convert_weather_to_seed(temperature: u32, wind_speed: u32) : u32 {
         temperature * wind_speed
     }
 
-    fun generate(seed:u64) : u64 {
+    fun generate_random(seed:u64) : u64 {
         (seed * 73 + 41) % 100
     }
 
-    fun get_temp(weather_oracle: &WeatherOracle): u32 {
-       // Paris, France
-        35
-        // oracle::weather::city_weather_oracle_temp(weather_oracle, geoname_id)
-    }
 
     public fun get_top_tiles(tiles:&VecMap<u64, Tile>): TopTiles {
         let result = vector::empty<Option<Tile>>();
