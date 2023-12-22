@@ -1,0 +1,10 @@
+[package]
+name = "game"
+version = "0.0.1"
+
+[dependencies]
+Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "a0e136a04" }
+oracle = { git = "https://github.com/MystenLabs/apps", subdir = "weather-oracle", rev = "db04fbd17d6ba91ade45c32f609b949fb47d209b" }
+[addresses]
+game = "0x0"
+oracle = "0xddfeeb50a29f5f26a90895ee58fb7251923bc0dab644dd2376a730a5ac79c0ac"
