@@ -9,14 +9,13 @@ module game::game_2048{
     use sui::event;
     use sui::transfer;
     use std::debug;
-    use sui::ecvrf::ecvrf_verify;
     use sui::vec_set;
-    use sui::hash::blake2b256;
     use oracle::weather::{Self,WeatherOracle};
+    use sui::clock::{Self,Clock};
     
     
     const E_GAME_ALREADY_OVER: u64=1;
-  
+    const E_GAME_ALREADY_WON: u64=2;
     struct Tile has store,copy,drop {
         key:u64,
         i: u64,
@@ -68,13 +67,13 @@ module game::game_2048{
     }
 
     #[lint_allow(self_transfer)]
-    public entry fun new_game(weather_oracle:&WeatherOracle,ctx:&mut TxContext){
-        let game = create_tiles_panel(ctx,weather_oracle);
+    public entry fun new_game(weather_oracle:&WeatherOracle,clock:&Clock,ctx:&mut TxContext){
+        let game = create_tiles_panel(ctx,weather_oracle,clock);
         transfer::public_transfer(game,tx_context::sender(ctx));
     }
 
 
-    public fun create_tiles_panel(ctx:&mut TxContext,weather_oracle:&WeatherOracle):Game2048{
+    public fun create_tiles_panel(ctx:&mut TxContext,weather_oracle:&WeatherOracle,clock:&Clock):Game2048{
         let id = object::new(ctx);
         let game = Game2048{
                 id,
@@ -83,12 +82,12 @@ module game::game_2048{
                 won:false,
                 score:0,
         };
-        generateTile(&mut game,weather_oracle);
-        generateTile(&mut game,weather_oracle);
+        generateTile(&mut game,weather_oracle,clock);
+        generateTile(&mut game,weather_oracle,clock);
         game
     }
 
-    public fun generateTile(_tiles: &mut Game2048,weather_oracle: &WeatherOracle):bool{
+    public fun generateTile(_tiles: &mut Game2048,weather_oracle: &WeatherOracle,clock:&Clock):bool{
                
     
         let validPos = vec_set::empty<u64>();
@@ -112,7 +111,7 @@ module game::game_2048{
                 let v= vec_map::get(&_tiles.tiles,key);
                 if(v.overlaid){
                     i = i + 1;
-                    continue;
+                    continue
                 };
                 let remove_key = v.i * 4 + v.j;
                 vec_set::remove(&mut validPos, &remove_key);
@@ -122,13 +121,13 @@ module game::game_2048{
         };
 
         let len = vec_set::size(&validPos);
-        let random_num = get_random(weather_oracle) % len;
+        let random_num = get_random(weather_oracle,clock) % len;
         let pos_keys = vec_set::keys(&validPos);
         let pos = vector::borrow(pos_keys,random_num);
         let i = (*pos / 4 as u64);
         let j = (*pos % 4 as u64);
         let value = {
-            let modnum = get_random(weather_oracle) % 6;
+            let modnum = get_random(weather_oracle,clock) % 6;
             if(modnum > 2){
                 4
             }else{
@@ -154,8 +153,10 @@ module game::game_2048{
     }
 
 
-    public entry fun move_tile(game:&mut Game2048,weather_oracle: &WeatherOracle,direction:u8){
+    public entry fun move_tile(game:&mut Game2048,weather_oracle: &WeatherOracle,direction:u8,clock:&Clock,ctx: &mut TxContext){
         assert!(!game.isgameOver,E_GAME_ALREADY_OVER);
+        assert!(!game.won,E_GAME_ALREADY_WON);
+        
         let base = vector::empty<u64>();
         let diff = vector::empty<u64>();
         if(direction == 0){//up
@@ -251,6 +252,7 @@ module game::game_2048{
                                 if (currentTile.value == 2048) {
                                     if (!game.won) {
                                         game.won = true;
+                                        // mint_won_nft(ctx);
                                         winFlag = true;
                                     };
                                 };
@@ -304,7 +306,7 @@ module game::game_2048{
         let gameOverFlag = false;
         if (movedFlag) {
 
-          gameOverFlag = generateTile(game,weather_oracle);
+          gameOverFlag = generateTile(game,weather_oracle,clock);
           let update_event = UpdateEvent{
             tiles:game.tiles
           };
@@ -351,7 +353,7 @@ module game::game_2048{
     }
 
 
-    public fun get_state(game: &Game2048) : vector<u64> {
+    fun get_state(game: &Game2048) : vector<u64> {
         if (!game.isgameOver) {
 
             let result = vector::empty<u64>();
@@ -390,7 +392,7 @@ module game::game_2048{
     }
 
 
-    public fun judge(tiles: &VecMap<u64, Tile>) : bool{
+    fun judge(tiles: &VecMap<u64, Tile>) : bool{
         let top_tiles = get_top_tiles(tiles);
         let flag = true;
         let i = 0;
@@ -424,7 +426,7 @@ module game::game_2048{
         flag
     }
 
-    fun get_random(weather_oracle: &WeatherOracle): u64 {
+    fun get_random(weather_oracle: &WeatherOracle,clock :&Clock): u64 {
         let geoname_id1 = 2988507; 
         let geoname_id2 = 2290956; 
         let temp1 = weather::city_weather_oracle_temp(weather_oracle, geoname_id1);
@@ -433,12 +435,14 @@ module game::game_2048{
         let temp2 = weather::city_weather_oracle_temp(weather_oracle, geoname_id2);
         let pre2 = weather::city_weather_oracle_pressure(weather_oracle,geoname_id2);
 
-        let seed = convert_weather_to_seed(temp1+temp1,pre1+pre2);
-        generate_random((seed as u64))
+
+        let seed = convert_weather_to_seed(temp1+temp2,pre1+pre2,clock);
+        generate_random(seed)
     }
 
-    fun convert_weather_to_seed(temperature: u32, wind_speed: u32) : u32 {
-        temperature * wind_speed
+    fun convert_weather_to_seed(temperature: u32, pressure: u32,clock:&Clock) : u64 {
+        let timestamp = clock::timestamp_ms(clock);
+        ((temperature * pressure ) as u64) + timestamp
     }
 
     fun generate_random(seed:u64) : u64 {
@@ -461,11 +465,7 @@ module game::game_2048{
             let i = 0;
             let keys = vec_map::keys(tiles);
             while (i < vector::length(&keys)) {
-                // debug::print(&string::utf8(b"---------------start-------------"));
-                // debug::print(tiles);
                 let key = vector::borrow(&keys,i);
-                // debug::print(key);
-                // debug::print(&string::utf8(b"---------------end-------------"));
                 let tile = vec_map::get(tiles, key);
                 if (!tile.overlaid) {
                     vector::push_back(&mut result, option::some(*tile),);
